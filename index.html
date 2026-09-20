@@ -1,0 +1,1297 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>DAMAS by EL PROFE CARLOS</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap');
+
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: manipulation;
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            font-family: 'Outfit', sans-serif;
+            background-color: #0f172a;
+            color: #f8fafc;
+        }
+
+        .board-container {
+            aspect-ratio: 1 / 1;
+            max-height: calc(100vh - 120px);
+            max-width: calc(100vw - 20px);
+            position: relative;
+        }
+
+        .board-grid {
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            grid-template-rows: repeat(8, 1fr);
+            width: 100%;
+            height: 100%;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+            border: 4px solid #334155;
+            position: relative;
+        }
+
+        .tile {
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+
+        .tile.dark {
+            background-color: #1e293b;
+        }
+
+        .tile.light {
+            background-color: #475569;
+        }
+
+        .tile.selected {
+            background-color: #0284c7 !important;
+        }
+
+        .tile.valid-move::after {
+            content: '';
+            position: absolute;
+            width: 30%;
+            height: 30%;
+            background-color: #22c55e;
+            border-radius: 50%;
+            opacity: 0.8;
+            box-shadow: 0 0 10px #22c55e;
+        }
+
+        .tile.valid-capture::after {
+            content: '';
+            position: absolute;
+            width: 35%;
+            height: 35%;
+            background-color: #ef4444;
+            border-radius: 50%;
+            opacity: 0.9;
+            box-shadow: 0 0 12px #ef4444;
+        }
+
+        .piece {
+            width: 82%;
+            height: 82%;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: absolute;
+            transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.3s ease;
+            z-index: 10;
+        }
+
+        .piece.captured-fade {
+            opacity: 0;
+            transform: scale(0.4) rotate(15deg) !important;
+            transition: all 0.35s ease-out !important;
+        }
+
+        .piece-p1 {
+            background: radial-gradient(circle at 30% 30%, var(--p1-color-light), var(--p1-color-dark));
+            box-shadow: 0 5px 0 var(--p1-shadow), inset 0 2px 3px rgba(255, 255, 255, 0.4), inset 0 -2px 3px rgba(0, 0, 0, 0.4);
+            border: 2px solid var(--p1-border);
+        }
+
+        .piece-p2 {
+            background: radial-gradient(circle at 30% 30%, var(--p2-color-light), var(--p2-color-dark));
+            box-shadow: 0 5px 0 var(--p2-shadow), inset 0 2px 3px rgba(255, 255, 255, 0.4), inset 0 -2px 3px rgba(0, 0, 0, 0.4);
+            border: 2px solid var(--p2-border);
+        }
+
+        .piece.king::after {
+            content: '\f521';
+            font-family: 'Font Awesome 6 Free';
+            font-weight: 900;
+            font-size: 1.3rem;
+            color: #fbbf24;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.6);
+        }
+
+        /* Animated Flying Ghost Piece Overlay */
+        .piece-animating {
+            position: absolute;
+            pointer-events: none;
+            z-index: 100 !important;
+            will-change: transform, left, top, box-shadow;
+        }
+
+        /* Theme Palette CSS variables */
+        :root {
+            --p1-color-light: #f87171;
+            --p1-color-dark: #dc2626;
+            --p1-shadow: #991b1b;
+            --p1-border: #fca5a5;
+
+            --p2-color-light: #4b5563;
+            --p2-color-dark: #111827;
+            --p2-shadow: #030712;
+            --p2-border: #6b7280;
+        }
+
+        .drawer-overlay {
+            background-color: rgba(15, 23, 42, 0.7);
+            backdrop-filter: blur(4px);
+            transition: opacity 0.3s ease;
+        }
+
+        .drawer {
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            max-height: 100vh;
+        }
+
+        @keyframes pulse-border {
+            0%, 100% { border-color: #38bdf8; box-shadow: 0 0 10px #38bdf8; }
+            50% { border-color: #0284c7; box-shadow: 0 0 2px #0284c7; }
+        }
+
+        .active-turn {
+            animation: pulse-border 1.8s infinite;
+        }
+    </style>
+</head>
+<body class="flex flex-col h-screen w-screen overflow-hidden bg-slate-950 text-slate-100">
+
+    <header class="flex items-center justify-between px-4 py-2.5 bg-slate-900 border-b border-slate-800 shrink-0 z-20 h-14">
+        <div class="flex items-center gap-3">
+            <button id="open-drawer-btn" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 transition active:scale-95">
+                <i class="fa-solid fa-bars text-lg"></i>
+            </button>
+            
+            <!-- SVG Logo -->
+            <div class="flex items-center gap-2">
+                <svg width="28" height="28" viewBox="0 0 100 100" class="drop-shadow">
+                    <circle cx="50" cy="50" r="45" fill="#dc2626" stroke="#fca5a5" stroke-width="6"/>
+                    <circle cx="50" cy="50" r="30" fill="#991b1b"/>
+                    <path d="M50 25 L58 40 L75 42 L62 54 L66 71 L50 62 L34 71 L38 54 L25 42 L42 40 Z" fill="#fbbf24"/>
+                </svg>
+                <div class="leading-tight">
+                    <h1 class="font-extrabold text-sm tracking-wide text-transparent bg-clip-text bg-gradient-to-r from-red-500 via-amber-400 to-amber-200">
+                        DAMAS
+                    </h1>
+                    <span class="text-[9px] font-semibold tracking-widest text-slate-400 block -mt-1">
+                        BY EL PROFE CARLOS
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Player Scores & Game Timer -->
+        <div class="flex items-center gap-2 sm:gap-4 text-xs font-semibold">
+            <div id="timer-box" class="hidden items-center gap-1.5 bg-slate-800/80 px-2.5 py-1 rounded-md border border-slate-700">
+                <i class="fa-regular fa-clock text-amber-400"></i>
+                <span id="timer-display" class="font-mono text-slate-200">00:00</span>
+            </div>
+
+            <div id="p1-card" class="flex items-center gap-1.5 px-2 py-1 rounded-md bg-slate-800 border border-slate-700">
+                <span id="p1-dot" class="w-3 h-3 rounded-full bg-red-500 inline-block"></span>
+                <span id="p1-score" class="text-xs">12</span>
+            </div>
+
+            <span class="text-slate-600">VS</span>
+
+            <div id="p2-card" class="flex items-center gap-1.5 px-2 py-1 rounded-md bg-slate-800 border border-slate-700">
+                <span id="p2-dot" class="w-3 h-3 rounded-full bg-slate-600 inline-block"></span>
+                <span id="p2-score" class="text-xs">12</span>
+            </div>
+        </div>
+    </header>
+
+    <main class="flex-1 flex flex-col items-center justify-center p-2 relative overflow-hidden">
+        <div class="mb-2 text-center">
+            <span id="turn-indicator" class="text-xs sm:text-sm font-medium px-3 py-1 rounded-full bg-slate-800/90 text-slate-300 border border-slate-700/80 shadow-sm">
+                Cargando partida...
+            </span>
+        </div>
+
+        <!-- Checkerboard Viewport Container -->
+        <div class="board-container flex items-center justify-center w-full max-w-[500px]">
+            <div id="board" class="board-grid">
+                <!-- Grid tiles dynamically created in JavaScript -->
+            </div>
+        </div>
+    </main>
+
+    <div id="drawer-overlay" class="drawer-overlay fixed inset-0 z-40 hidden opacity-0 pointer-events-none"></div>
+
+    <aside id="drawer" class="drawer fixed top-0 left-0 bottom-0 w-80 max-w-[85vw] bg-slate-900 border-r border-slate-800 z-50 transform -translate-x-full flex flex-col justify-between shadow-2xl overflow-hidden">
+        
+        <div class="p-3 border-b border-slate-800 flex items-center justify-between bg-slate-950/50">
+            <div class="flex items-center gap-2">
+                <svg width="32" height="32" viewBox="0 0 100 100">
+                    <circle cx="50" cy="50" r="45" fill="#dc2626" stroke="#fca5a5" stroke-width="6"/>
+                    <circle cx="50" cy="50" r="30" fill="#991b1b"/>
+                    <path d="M50 25 L58 40 L75 42 L62 54 L66 71 L50 62 L34 71 L38 54 L25 42 L42 40 Z" fill="#fbbf24"/>
+                </svg>
+                <div>
+                    <h2 class="font-black text-sm tracking-wider text-amber-400 leading-none">DAMAS</h2>
+                    <span class="text-[10px] font-bold text-slate-400 tracking-widest">BY EL PROFE CARLOS</span>
+                </div>
+            </div>
+            <button id="close-drawer-btn" class="text-slate-400 hover:text-white p-1.5 rounded-md hover:bg-slate-800 transition">
+                <i class="fa-solid fa-xmark text-lg"></i>
+            </button>
+        </div>
+
+        <div class="p-3 flex-1 flex flex-col justify-between text-xs space-y-2 overflow-y-auto">
+            
+            <div class="bg-slate-800/60 p-2.5 rounded-lg border border-slate-700/60 space-y-2">
+                <div class="flex justify-between items-center">
+                    <label class="font-bold text-slate-300 flex items-center gap-1.5">
+                        <i class="fa-solid fa-gamepad text-indigo-400"></i> Modo de Juego
+                    </label>
+                    <select id="game-mode" class="bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-slate-200 focus:outline-none">
+                        <option value="pvp">1 vs 1 (Local)</option>
+                        <option value="pve" selected>1 Jugador vs CPU</option>
+                    </select>
+                </div>
+
+                <div id="difficulty-wrapper" class="flex justify-between items-center">
+                    <label class="font-bold text-slate-300 flex items-center gap-1.5">
+                        <i class="fa-solid fa-brain text-purple-400"></i> Dificultad CPU
+                    </label>
+                    <select id="cpu-difficulty" class="bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-slate-200 focus:outline-none">
+                        <option value="easy">Fácil</option>
+                        <option value="medium" selected>Intermedio</option>
+                        <option value="hard">Difícil</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Custom Rule Settings -->
+            <div class="bg-slate-800/60 p-2.5 rounded-lg border border-slate-700/60 space-y-2">
+                <span class="font-bold text-slate-300 block mb-1 text-[11px] uppercase tracking-wider text-amber-400/90 flex items-center gap-1">
+                    <i class="fa-solid fa-scale-balanced"></i> Reglas Personalizables
+                </span>
+
+                <div class="flex justify-between items-center">
+                    <span class="text-slate-300">Captura Obligatoria</span>
+                    <input type="checkbox" id="rule-mandatory" class="accent-emerald-500 h-4 w-4 rounded cursor-pointer" checked>
+                </div>
+
+                <div class="flex justify-between items-center">
+                    <span class="text-slate-300">Soplar / Pieza Quemada</span>
+                    <input type="checkbox" id="rule-juffing" class="accent-emerald-500 h-4 w-4 rounded cursor-pointer">
+                </div>
+
+                <div class="flex justify-between items-center">
+                    <span class="text-slate-300">Damas Voladoras (Largo)</span>
+                    <input type="checkbox" id="rule-flying-kings" class="accent-emerald-500 h-4 w-4 rounded cursor-pointer" checked>
+                </div>
+
+                <div class="flex justify-between items-center">
+                    <span class="text-slate-300">Capturar Atrás (Peón)</span>
+                    <input type="checkbox" id="rule-backward-capture" class="accent-emerald-500 h-4 w-4 rounded cursor-pointer" checked>
+                </div>
+
+                <div class="flex justify-between items-center">
+                    <span class="text-slate-300">Regla 40 Movimientos</span>
+                    <input type="checkbox" id="rule-40-moves" class="accent-emerald-500 h-4 w-4 rounded cursor-pointer" checked>
+                </div>
+
+                <div class="flex justify-between items-center">
+                    <span class="text-slate-300">Tablas Automáticas</span>
+                    <input type="checkbox" id="rule-auto-draw" class="accent-emerald-500 h-4 w-4 rounded cursor-pointer" checked>
+                </div>
+            </div>
+
+            <!-- Custom Color Palettes & Sound -->
+            <div class="bg-slate-800/60 p-2.5 rounded-lg border border-slate-700/60 space-y-2">
+                <div class="flex justify-between items-center">
+                    <label class="font-bold text-slate-300 flex items-center gap-1.5">
+                        <i class="fa-solid fa-palette text-pink-400"></i> Paleta Fichas
+                    </label>
+                    <select id="color-palette" class="bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-slate-200 focus:outline-none">
+                        <option value="classic">Rojo vs Negro</option>
+                        <option value="ocean">Azul vs Amarillo</option>
+                        <option value="forest">Verde vs Violeta</option>
+                    </select>
+                </div>
+
+                <div class="flex justify-between items-center">
+                    <span class="text-slate-300 flex items-center gap-1.5">
+                        <i class="fa-solid fa-volume-high text-sky-400"></i> Efectos de Sonido
+                    </span>
+                    <input type="checkbox" id="opt-sound" class="accent-emerald-500 h-4 w-4 rounded cursor-pointer" checked>
+                </div>
+
+                <div class="flex justify-between items-center">
+                    <span class="text-slate-300 flex items-center gap-1.5">
+                        <i class="fa-solid fa-stopwatch text-amber-400"></i> Activar Cronómetro
+                    </span>
+                    <input type="checkbox" id="opt-timer" class="accent-emerald-500 h-4 w-4 rounded cursor-pointer" checked>
+                </div>
+            </div>
+
+            <button id="apply-restart-btn" class="w-full py-2.5 bg-gradient-to-r from-red-600 to-amber-600 hover:from-red-500 hover:to-amber-500 text-white font-bold rounded-lg shadow-lg transition transform active:scale-95 flex items-center justify-center gap-2">
+                <i class="fa-solid fa-rotate-right"></i> Reiniciar Con Ajustes
+            </button>
+        </div>
+
+        <div class="p-2.5 border-t border-slate-800 text-center bg-slate-950/80">
+            <p class="text-[10px] text-slate-500">Diseñado con precisión para Profe Carlos © 2026</p>
+        </div>
+    </aside>
+
+    <div id="game-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-slate-900 border border-slate-700 rounded-2xl p-6 max-w-sm w-full text-center shadow-2xl">
+            <div id="modal-icon" class="w-16 h-16 rounded-full mx-auto flex items-center justify-center text-3xl mb-4 bg-amber-500/20 text-amber-400 border border-amber-500/40">
+                <i class="fa-solid fa-trophy"></i>
+            </div>
+            <h3 id="modal-title" class="text-xl font-black text-white mb-2">¡Partida Finalizada!</h3>
+            <p id="modal-body" class="text-sm text-slate-300 mb-6">El Jugador 1 ha ganado la partida.</p>
+            <button id="modal-restart-btn" class="w-full py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold rounded-xl shadow-lg transition active:scale-95">
+                Nueva Partida
+            </button>
+        </div>
+    </div>
+
+    <script>
+        class SoundEngine {
+            constructor() {
+                this.ctx = null;
+                this.enabled = true;
+            }
+
+            init() {
+                if (!this.ctx) {
+                    const AudioContext = window.AudioContext || window.webkitAudioContext;
+                    if (AudioContext) {
+                        this.ctx = new AudioContext();
+                    }
+                }
+            }
+
+            // Audio sound for lifting a piece
+            playLift() {
+                if (!this.enabled) return;
+                this.init();
+                if (!this.ctx) return;
+
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(200, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(380, this.ctx.currentTime + 0.06);
+
+                gain.gain.setValueAtTime(0.2, this.ctx.currentTime);
+                gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.06);
+
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.06);
+            }
+
+            // Audio sound for sliding through the air
+            playSlide() {
+                if (!this.enabled) return;
+                this.init();
+                if (!this.ctx) return;
+
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(280, this.ctx.currentTime);
+                osc.frequency.linearRampToValueAtTime(320, this.ctx.currentTime + 0.15);
+
+                gain.gain.setValueAtTime(0.1, this.ctx.currentTime);
+                gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.15);
+
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.15);
+            }
+
+            // Audio sound for placing/dropping the piece back down
+            playDrop() {
+                if (!this.enabled) return;
+                this.init();
+                if (!this.ctx) return;
+
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(320, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(110, this.ctx.currentTime + 0.09);
+
+                gain.gain.setValueAtTime(0.35, this.ctx.currentTime);
+                gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.09);
+
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.09);
+            }
+
+            playCapture() {
+                if (!this.enabled) return;
+                this.init();
+                if (!this.ctx) return;
+
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(160, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(450, this.ctx.currentTime + 0.12);
+
+                gain.gain.setValueAtTime(0.3, this.ctx.currentTime);
+                gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.12);
+
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.12);
+            }
+
+            playCrown() {
+                if (!this.enabled) return;
+                this.init();
+                if (!this.ctx) return;
+
+                const now = this.ctx.currentTime;
+                [440, 554.37, 659.25, 880].forEach((freq, idx) => {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(freq, now + idx * 0.06);
+
+                    gain.gain.setValueAtTime(0.25, now + idx * 0.06);
+                    gain.gain.linearRampToValueAtTime(0.01, now + idx * 0.06 + 0.15);
+
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start(now + idx * 0.06);
+                    osc.stop(now + idx * 0.06 + 0.15);
+                });
+            }
+        }
+
+        const sounds = new SoundEngine();
+    </script>
+
+    <script>
+        const PLAYER_1 = 1; // Red / Bottom
+        const PLAYER_2 = 2; // Dark / Top
+
+        const PALETTES = {
+            classic: {
+                p1Light: '#f87171', p1Dark: '#dc2626', p1Shadow: '#991b1b', p1Border: '#fca5a5', p1Dot: '#ef4444',
+                p2Light: '#4b5563', p2Dark: '#111827', p2Shadow: '#030712', p2Border: '#6b7280', p2Dot: '#374151'
+            },
+            ocean: {
+                p1Light: '#38bdf8', p1Dark: '#0284c7', p1Shadow: '#075985', p1Border: '#7dd3fc', p1Dot: '#0284c7',
+                p2Light: '#fde047', p2Dark: '#eab308', p2Shadow: '#854d0e', p2Border: '#fef08a', p2Dot: '#eab308'
+            },
+            forest: {
+                p1Light: '#4ade80', p1Dark: '#16a34a', p1Shadow: '#14532d', p1Border: '#86efac', p1Dot: '#16a34a',
+                p2Light: '#c084fc', p2Dark: '#9333ea', p2Shadow: '#581c87', p2Border: '#e9d5ff', p2Dot: '#9333ea'
+            }
+        };
+
+        let gameState = {
+            board: [],
+            turn: PLAYER_1,
+            selectedCell: null,
+            validMoves: [],
+            p1Count: 12,
+            p2Count: 12,
+            isGameOver: false,
+            quietMovesCount: 0,
+            timerInterval: null,
+            timerSeconds: 0,
+            chainCaptureCell: null,
+            isAnimating: false
+        };
+
+        let settings = {
+            mode: 'pve',
+            difficulty: 'medium',
+            mandatoryCapture: true,
+            juffing: false,
+            flyingKings: true,
+            backwardCapture: true,
+            rule40Moves: true,
+            autoDraw: true,
+            sound: true,
+            timer: true,
+            palette: 'classic'
+        };
+
+        window.addEventListener('load', () => {
+            initDrawerUI();
+            readSettingsFromUI();
+            applyPalette(settings.palette);
+            startNewGame();
+        });
+
+        function initDrawerUI() {
+            const drawer = document.getElementById('drawer');
+            const overlay = document.getElementById('drawer-overlay');
+            const openBtn = document.getElementById('open-drawer-btn');
+            const closeBtn = document.getElementById('close-drawer-btn');
+            const applyBtn = document.getElementById('apply-restart-btn');
+            const gameModeSelect = document.getElementById('game-mode');
+            const diffWrapper = document.getElementById('difficulty-wrapper');
+
+            function toggleDrawer(open) {
+                if (open) {
+                    overlay.classList.remove('hidden');
+                    setTimeout(() => {
+                        overlay.classList.remove('opacity-0');
+                        drawer.classList.remove('-translate-x-full');
+                    }, 10);
+                } else {
+                    drawer.classList.add('-translate-x-full');
+                    overlay.classList.add('opacity-0');
+                    setTimeout(() => {
+                        overlay.classList.add('hidden');
+                    }, 300);
+                }
+            }
+
+            openBtn.addEventListener('click', () => toggleDrawer(true));
+            closeBtn.addEventListener('click', () => toggleDrawer(false));
+            overlay.addEventListener('click', () => toggleDrawer(false));
+
+            gameModeSelect.addEventListener('change', (e) => {
+                diffWrapper.style.display = e.target.value === 'pve' ? 'flex' : 'none';
+            });
+
+            applyBtn.addEventListener('click', () => {
+                readSettingsFromUI();
+                applyPalette(settings.palette);
+                toggleDrawer(false);
+                startNewGame();
+            });
+
+            document.getElementById('modal-restart-btn').addEventListener('click', () => {
+                document.getElementById('game-modal').classList.add('hidden');
+                startNewGame();
+            });
+        }
+
+        function readSettingsFromUI() {
+            settings.mode = document.getElementById('game-mode').value;
+            settings.difficulty = document.getElementById('cpu-difficulty').value;
+            settings.mandatoryCapture = document.getElementById('rule-mandatory').checked;
+            settings.juffing = document.getElementById('rule-juffing').checked;
+            settings.flyingKings = document.getElementById('rule-flying-kings').checked;
+            settings.backwardCapture = document.getElementById('rule-backward-capture').checked;
+            settings.rule40Moves = document.getElementById('rule-40-moves').checked;
+            settings.autoDraw = document.getElementById('rule-auto-draw').checked;
+            settings.sound = document.getElementById('opt-sound').checked;
+            settings.timer = document.getElementById('opt-timer').checked;
+            settings.palette = document.getElementById('color-palette').value;
+
+            sounds.enabled = settings.sound;
+        }
+
+        function applyPalette(themeKey) {
+            const pal = PALETTES[themeKey] || PALETTES.classic;
+            const root = document.documentElement;
+
+            root.style.setProperty('--p1-color-light', pal.p1Light);
+            root.style.setProperty('--p1-color-dark', pal.p1Dark);
+            root.style.setProperty('--p1-shadow', pal.p1Shadow);
+            root.style.setProperty('--p1-border', pal.p1Border);
+
+            root.style.setProperty('--p2-color-light', pal.p2Light);
+            root.style.setProperty('--p2-color-dark', pal.p2Dark);
+            root.style.setProperty('--p2-shadow', pal.p2Shadow);
+            root.style.setProperty('--p2-border', pal.p2Border);
+
+            document.getElementById('p1-dot').style.backgroundColor = pal.p1Dot;
+            document.getElementById('p2-dot').style.backgroundColor = pal.p2Dot;
+        }
+
+        function startTimer() {
+            clearInterval(gameState.timerInterval);
+            gameState.timerSeconds = 0;
+            const timerBox = document.getElementById('timer-box');
+            const timerDisplay = document.getElementById('timer-display');
+
+            if (!settings.timer) {
+                timerBox.classList.add('hidden');
+                timerBox.classList.remove('flex');
+                return;
+            }
+
+            timerBox.classList.remove('hidden');
+            timerBox.classList.add('flex');
+            timerDisplay.textContent = '00:00';
+
+            gameState.timerInterval = setInterval(() => {
+                gameState.timerSeconds++;
+                const mins = Math.floor(gameState.timerSeconds / 60).toString().padStart(2, '0');
+                const secs = (gameState.timerSeconds % 60).toString().padStart(2, '0');
+                timerDisplay.textContent = `${mins}:${secs}`;
+            }, 1000);
+        }
+
+        function stopTimer() {
+            clearInterval(gameState.timerInterval);
+        }
+
+        function startNewGame() {
+            stopTimer();
+            startTimer();
+
+            gameState.board = Array(8).fill(null).map(() => Array(8).fill(0));
+            gameState.turn = PLAYER_1;
+            gameState.selectedCell = null;
+            gameState.validMoves = [];
+            gameState.p1Count = 12;
+            gameState.p2Count = 12;
+            gameState.isGameOver = false;
+            gameState.quietMovesCount = 0;
+            gameState.chainCaptureCell = null;
+            gameState.isAnimating = false;
+
+            for (let r = 0; r < 8; r++) {
+                for (let c = 0; c < 8; c++) {
+                    if ((r + c) % 2 === 1) {
+                        if (r < 3) gameState.board[r][c] = PLAYER_2;
+                        else if (r > 4) gameState.board[r][c] = PLAYER_1;
+                    }
+                }
+            }
+
+            renderBoard();
+            updateTurnDisplay();
+        }
+
+        function renderBoard() {
+            const boardEl = document.getElementById('board');
+            boardEl.innerHTML = '';
+
+            for (let r = 0; r < 8; r++) {
+                for (let c = 0; c < 8; c++) {
+                    const tile = document.createElement('div');
+                    const isDark = (r + c) % 2 === 1;
+                    tile.className = `tile ${isDark ? 'dark' : 'light'}`;
+                    tile.dataset.row = r;
+                    tile.dataset.col = c;
+
+                    if (gameState.selectedCell && gameState.selectedCell.r === r && gameState.selectedCell.c === c) {
+                        tile.classList.add('selected');
+                    }
+
+                    const moveMatch = gameState.validMoves.find(m => m.r === r && m.c === c);
+                    if (moveMatch) {
+                        tile.classList.add(moveMatch.isCapture ? 'valid-capture' : 'valid-move');
+                    }
+
+                    const val = gameState.board[r][c];
+                    if (val !== 0) {
+                        const piece = document.createElement('div');
+                        const isP1 = val === PLAYER_1 || val === -PLAYER_1;
+                        const isKing = val < 0;
+
+                        piece.className = `piece ${isP1 ? 'piece-p1' : 'piece-p2'} ${isKing ? 'king' : ''}`;
+                        piece.dataset.r = r;
+                        piece.dataset.c = c;
+                        tile.appendChild(piece);
+                    }
+
+                    tile.addEventListener('click', () => handleCellClick(r, c));
+                    boardEl.appendChild(tile);
+                }
+            }
+
+            document.getElementById('p1-score').textContent = gameState.p1Count;
+            document.getElementById('p2-score').textContent = gameState.p2Count;
+        }
+
+        function updateTurnDisplay() {
+            const turnEl = document.getElementById('turn-indicator');
+            const p1Card = document.getElementById('p1-card');
+            const p2Card = document.getElementById('p2-card');
+
+            p1Card.classList.remove('active-turn');
+            p2Card.classList.remove('active-turn');
+
+            if (gameState.turn === PLAYER_1) {
+                turnEl.textContent = "Turno: Jugador 1 (Tu turno)";
+                turnEl.className = "text-xs sm:text-sm font-medium px-3 py-1 rounded-full bg-red-950/80 text-red-300 border border-red-700/80 shadow-sm";
+                p1Card.classList.add('active-turn');
+            } else {
+                const isCpu = settings.mode === 'pve';
+                turnEl.textContent = isCpu ? "Turno: CPU pensando..." : "Turno: Jugador 2";
+                turnEl.className = "text-xs sm:text-sm font-medium px-3 py-1 rounded-full bg-slate-800/90 text-slate-300 border border-slate-700/80 shadow-sm";
+                p2Card.classList.add('active-turn');
+            }
+        }
+
+        function handleCellClick(r, c) {
+            if (gameState.isGameOver || gameState.isAnimating) return;
+            if (settings.mode === 'pve' && gameState.turn === PLAYER_2) return;
+
+            const piece = gameState.board[r][c];
+
+            if (gameState.chainCaptureCell) {
+                if (r !== gameState.chainCaptureCell.r || c !== gameState.chainCaptureCell.c) {
+                    const targetMove = gameState.validMoves.find(m => m.r === r && m.c === c);
+                    if (targetMove) {
+                        animateAndExecuteMove(targetMove);
+                    }
+                    return;
+                }
+            }
+
+            const targetMove = gameState.validMoves.find(m => m.r === r && m.c === c);
+            if (targetMove && gameState.selectedCell) {
+                animateAndExecuteMove(targetMove);
+                return;
+            }
+
+            if (piece !== 0 && isPieceOwnedBy(piece, gameState.turn)) {
+                const allCaptures = getAllCapturesForPlayer(gameState.board, gameState.turn);
+                if (settings.mandatoryCapture && allCaptures.length > 0) {
+                    const pieceCaptures = allCaptures.filter(m => m.fromR === r && m.fromC === c);
+                    if (pieceCaptures.length === 0) return;
+                    gameState.selectedCell = { r, c };
+                    gameState.validMoves = pieceCaptures;
+                } else {
+                    gameState.selectedCell = { r, c };
+                    gameState.validMoves = getValidMovesForPiece(gameState.board, r, c);
+                }
+                renderBoard();
+            } else {
+                gameState.selectedCell = null;
+                gameState.validMoves = [];
+                renderBoard();
+            }
+        }
+
+        function animateAndExecuteMove(move) {
+            gameState.isAnimating = true;
+            sounds.playLift();
+
+            const boardEl = document.getElementById('board');
+            const { fromR, fromC, r, c, isCapture, captured } = move;
+
+            const startTile = boardEl.querySelector(`[data-row="${fromR}"][data-col="${fromC}"]`);
+            const endTile = boardEl.querySelector(`[data-row="${r}"][data-col="${c}"]`);
+            const originalPieceEl = startTile ? startTile.querySelector('.piece') : null;
+
+            if (!startTile || !endTile || !originalPieceEl) {
+                executeMoveLogic(move);
+                gameState.isAnimating = false;
+                return;
+            }
+
+            const boardRect = boardEl.getBoundingClientRect();
+            const startRect = startTile.getBoundingClientRect();
+            const endRect = endTile.getBoundingClientRect();
+
+            // Hide original static piece while animated copy performs transition
+            originalPieceEl.style.visibility = 'hidden';
+
+            // Create Animated Flying Ghost Element
+            const animPiece = originalPieceEl.cloneNode(true);
+            animPiece.style.visibility = 'visible';
+            animPiece.classList.add('piece-animating');
+
+            const startLeft = startRect.left - boardRect.left + (startRect.width - startRect.width * 0.82) / 2;
+            const startTop = startRect.top - boardRect.top + (startRect.height - startRect.height * 0.82) / 2;
+
+            const endLeft = endRect.left - boardRect.left + (endRect.width - endRect.width * 0.82) / 2;
+            const endTop = endRect.top - boardRect.top + (endRect.height - endRect.height * 0.82) / 2;
+
+            animPiece.style.left = `${startLeft}px`;
+            animPiece.style.top = `${startTop}px`;
+            animPiece.style.width = `${startRect.width * 0.82}px`;
+            animPiece.style.height = `${startRect.height * 0.82}px`;
+
+            boardEl.appendChild(animPiece);
+
+            const duration = isCapture ? 420 : 340; // Ms for flight
+            const startTime = performance.now();
+
+            sounds.playSlide();
+
+            // Parabolic Arc Animation Loop via RequestAnimationFrame
+            function animateFrame(now) {
+                const elapsed = now - startTime;
+                const progress = Math.min(elapsed / duration, 1);
+
+                // Cubic easing for smooth movement
+                const easeProgress = progress < 0.5 
+                    ? 4 * progress * progress * progress 
+                    : 1 - Math.pow(-2 * progress + 2, 3) / 2;
+
+                const currentLeft = startLeft + (endLeft - startLeft) * easeProgress;
+                const currentTop = startTop + (endTop - startTop) * easeProgress;
+
+                // Vertical Lift Arc (Simulate grabbing and lifting into 3D height)
+                const arcHeight = isCapture ? 32 : 18;
+                const liftOffset = Math.sin(progress * Math.PI) * arcHeight;
+                const currentScale = 1 + (liftOffset / 100);
+
+                animPiece.style.left = `${currentLeft}px`;
+                animPiece.style.top = `${currentTop - liftOffset}px`;
+                animPiece.style.transform = `scale(${currentScale})`;
+                animPiece.style.boxShadow = `0 ${5 + liftOffset * 0.8}px ${10 + liftOffset}px rgba(0,0,0,0.6)`;
+
+                if (progress < 1) {
+                    requestAnimationFrame(animateFrame);
+                } else {
+                    // Touchdown / Drop
+                    sounds.playDrop();
+                    animPiece.remove();
+
+                    // Fade captured pieces if applicable
+                    if (isCapture && captured) {
+                        captured.forEach(cap => {
+                            const capTile = boardEl.querySelector(`[data-row="${cap.r}"][data-col="${cap.c}"]`);
+                            if (capTile) {
+                                const capPiece = capTile.querySelector('.piece');
+                                if (capPiece) capPiece.classList.add('captured-fade');
+                            }
+                        });
+
+                        setTimeout(() => {
+                            executeMoveLogic(move);
+                            gameState.isAnimating = false;
+                        }, 200);
+                    } else {
+                        executeMoveLogic(move);
+                        gameState.isAnimating = false;
+                    }
+                }
+            }
+
+            requestAnimationFrame(animateFrame);
+        }
+
+        function executeMoveLogic(move) {
+            const { fromR, fromC, r, c, isCapture, captured } = move;
+            let piece = gameState.board[fromR][fromC];
+            let isCrowned = false;
+
+            gameState.board[fromR][fromC] = 0;
+
+            if (gameState.turn === PLAYER_1 && r === 0 && piece === PLAYER_1) {
+                piece = -PLAYER_1;
+                isCrowned = true;
+            } else if (gameState.turn === PLAYER_2 && r === 7 && piece === PLAYER_2) {
+                piece = -PLAYER_2;
+                isCrowned = true;
+            }
+
+            gameState.board[r][c] = piece;
+
+            if (isCapture && captured) {
+                captured.forEach(cap => {
+                    gameState.board[cap.r][cap.c] = 0;
+                    if (gameState.turn === PLAYER_1) gameState.p2Count--;
+                    else gameState.p1Count--;
+                });
+                sounds.playCapture();
+                gameState.quietMovesCount = 0;
+            } else {
+                gameState.quietMovesCount++;
+            }
+
+            if (isCrowned) {
+                sounds.playCrown();
+            }
+
+            // Chain Captures
+            if (isCapture && !isCrowned) {
+                const subMoves = getValidMovesForPiece(gameState.board, r, c).filter(m => m.isCapture);
+                if (subMoves.length > 0) {
+                    gameState.chainCaptureCell = { r, c };
+                    gameState.selectedCell = { r, c };
+                    gameState.validMoves = subMoves;
+                    renderBoard();
+
+                    if (settings.mode === 'pve' && gameState.turn === PLAYER_2) {
+                        setTimeout(() => makeCpuMove(), 400);
+                    }
+                    return;
+                }
+            }
+
+            gameState.chainCaptureCell = null;
+            gameState.selectedCell = null;
+            gameState.validMoves = [];
+
+            if (checkEndGameConditions()) return;
+
+            gameState.turn = gameState.turn === PLAYER_1 ? PLAYER_2 : PLAYER_1;
+            renderBoard();
+            updateTurnDisplay();
+
+            if (settings.mode === 'pve' && gameState.turn === PLAYER_2 && !gameState.isGameOver) {
+                setTimeout(() => makeCpuMove(), 500);
+            }
+        }
+
+        function isPieceOwnedBy(pieceVal, player) {
+            if (player === PLAYER_1) return pieceVal === 1 || pieceVal === -1;
+            if (player === PLAYER_2) return pieceVal === 2 || pieceVal === -2;
+            return false;
+        }
+
+        function getValidMovesForPiece(board, r, c) {
+            const piece = board[r][c];
+            if (piece === 0) return [];
+
+            const player = (piece === 1 || piece === -1) ? PLAYER_1 : PLAYER_2;
+            const isKing = piece < 0;
+            const captures = [];
+            const quietMoves = [];
+
+            const directions = [];
+            if (isKing || settings.flyingKings) {
+                directions.push([-1, -1], [-1, 1], [1, -1], [1, 1]);
+            } else if (player === PLAYER_1) {
+                directions.push([-1, -1], [-1, 1]);
+            } else if (player === PLAYER_2) {
+                directions.push([1, -1], [1, 1]);
+            }
+
+            const captureDirs = isKing ? [[-1,-1],[-1,1],[1,-1],[1,1]] : 
+                (settings.backwardCapture ? [[-1,-1],[-1,1],[1,-1],[1,1]] : directions);
+
+            captureDirs.forEach(([dr, dc]) => {
+                if (isKing && settings.flyingKings) {
+                    let step = 1;
+                    let victimFound = null;
+
+                    while (true) {
+                        const nr = r + dr * step;
+                        const nc = c + dc * step;
+
+                        if (nr < 0 || nr >= 8 || nc < 0 || nc >= 8) break;
+                        const target = board[nr][nc];
+
+                        if (target !== 0) {
+                            if (isPieceOwnedBy(target, player)) break;
+                            if (victimFound) break;
+                            victimFound = { r: nr, c: nc, val: target };
+                        } else if (victimFound) {
+                            captures.push({
+                                fromR: r, fromC: c, r: nr, c: nc,
+                                isCapture: true, captured: [victimFound]
+                            });
+                        }
+                        step++;
+                    }
+                } else {
+                    const mr = r + dr;
+                    const mc = c + dc;
+                    const lr = r + dr * 2;
+                    const lc = c + dc * 2;
+
+                    if (lr >= 0 && lr < 8 && lc >= 0 && lc < 8) {
+                        const mid = board[mr][mc];
+                        const landing = board[lr][lc];
+
+                        if (mid !== 0 && !isPieceOwnedBy(mid, player) && landing === 0) {
+                            captures.push({
+                                fromR: r, fromC: c, r: lr, c: lc,
+                                isCapture: true, captured: [{ r: mr, c: mc }]
+                            });
+                        }
+                    }
+                }
+            });
+
+            if (captures.length > 0) return captures;
+
+            directions.forEach(([dr, dc]) => {
+                if (isKing && settings.flyingKings) {
+                    let step = 1;
+                    while (true) {
+                        const nr = r + dr * step;
+                        const nc = c + dc * step;
+                        if (nr < 0 || nr >= 8 || nc < 0 || nc >= 8) break;
+                        if (board[nr][nc] !== 0) break;
+
+                        quietMoves.push({
+                            fromR: r, fromC: c, r: nr, c: nc,
+                            isCapture: false
+                        });
+                        step++;
+                    }
+                } else {
+                    const nr = r + dr;
+                    const nc = c + dc;
+                    if (nr >= 0 && nr < 8 && nc >= 0 && nc < 8 && board[nr][nc] === 0) {
+                        quietMoves.push({
+                            fromR: r, fromC: c, r: nr, c: nc,
+                            isCapture: false
+                        });
+                    }
+                }
+            });
+
+            return quietMoves;
+        }
+
+        function getAllCapturesForPlayer(board, player) {
+            const captures = [];
+            for (let r = 0; r < 8; r++) {
+                for (let c = 0; c < 8; c++) {
+                    const val = board[r][c];
+                    if (val !== 0 && isPieceOwnedBy(val, player)) {
+                        const moves = getValidMovesForPiece(board, r, c);
+                        moves.forEach(m => {
+                            if (m.isCapture) captures.push(m);
+                        });
+                    }
+                }
+            }
+            return captures;
+        }
+
+        function makeCpuMove() {
+            if (gameState.isGameOver || gameState.isAnimating) return;
+
+            let moves = [];
+            const captures = getAllCapturesForPlayer(gameState.board, PLAYER_2);
+
+            if (settings.mandatoryCapture && captures.length > 0) {
+                moves = captures;
+            } else {
+                for (let r = 0; r < 8; r++) {
+                    for (let c = 0; c < 8; c++) {
+                        if (isPieceOwnedBy(gameState.board[r][c], PLAYER_2)) {
+                            const pMoves = getValidMovesForPiece(gameState.board, r, c);
+                            moves = moves.concat(pMoves);
+                        }
+                    }
+                }
+            }
+
+            if (moves.length === 0) {
+                triggerGameOver(PLAYER_1, "CPU sin movimientos válidos.");
+                return;
+            }
+
+            let chosenMove = null;
+
+            if (settings.difficulty === 'easy') {
+                chosenMove = moves[Math.floor(Math.random() * moves.length)];
+            } else if (settings.difficulty === 'medium') {
+                const capturesOnly = moves.filter(m => m.isCapture);
+                if (capturesOnly.length > 0) {
+                    chosenMove = capturesOnly[Math.floor(Math.random() * capturesOnly.length)];
+                } else {
+                    chosenMove = moves[Math.floor(Math.random() * moves.length)];
+                }
+            } else {
+                chosenMove = getBestMoveMinimax(gameState.board, 3);
+                if (!chosenMove) chosenMove = moves[Math.floor(Math.random() * moves.length)];
+            }
+
+            animateAndExecuteMove(chosenMove);
+        }
+
+        function getBestMoveMinimax(currentBoard, depth) {
+            let bestScore = -Infinity;
+            let bestMove = null;
+
+            let moves = getAllCapturesForPlayer(currentBoard, PLAYER_2);
+            if (moves.length === 0 || !settings.mandatoryCapture) {
+                moves = [];
+                for (let r = 0; r < 8; r++) {
+                    for (let c = 0; c < 8; c++) {
+                        if (isPieceOwnedBy(currentBoard[r][c], PLAYER_2)) {
+                            moves = moves.concat(getValidMovesForPiece(currentBoard, r, c));
+                        }
+                    }
+                }
+            }
+
+            for (const move of moves) {
+                const boardCopy = currentBoard.map(row => [...row]);
+                boardCopy[move.fromR][move.fromC] = 0;
+                boardCopy[move.r][move.c] = PLAYER_2;
+                if (move.isCapture && move.captured) {
+                    move.captured.forEach(cp => boardCopy[cp.r][cp.c] = 0);
+                }
+
+                const score = minimax(boardCopy, depth - 1, false, -Infinity, Infinity);
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestMove = move;
+                }
+            }
+
+            return bestMove;
+        }
+
+        function minimax(board, depth, isMaximizing, alpha, beta) {
+            if (depth === 0) return evaluateBoard(board);
+
+            if (isMaximizing) {
+                let maxEval = -Infinity;
+                let moves = getAllCapturesForPlayer(board, PLAYER_2);
+                if (moves.length === 0 || !settings.mandatoryCapture) {
+                    moves = [];
+                    for (let r = 0; r < 8; r++) {
+                        for (let c = 0; c < 8; c++) {
+                            if (isPieceOwnedBy(board[r][c], PLAYER_2)) {
+                                moves = moves.concat(getValidMovesForPiece(board, r, c));
+                            }
+                        }
+                    }
+                }
+
+                if (moves.length === 0) return -1000;
+
+                for (const m of moves) {
+                    const tempBoard = board.map(row => [...row]);
+                    tempBoard[m.fromR][m.fromC] = 0;
+                    tempBoard[m.r][m.c] = PLAYER_2;
+                    if (m.isCapture && m.captured) m.captured.forEach(cp => tempBoard[cp.r][cp.c] = 0);
+
+                    const evalScore = minimax(tempBoard, depth - 1, false, alpha, beta);
+                    maxEval = Math.max(maxEval, evalScore);
+                    alpha = Math.max(alpha, evalScore);
+                    if (beta <= alpha) break;
+                }
+                return maxEval;
+            } else {
+                let minEval = Infinity;
+                let moves = getAllCapturesForPlayer(board, PLAYER_1);
+                if (moves.length === 0 || !settings.mandatoryCapture) {
+                    moves = [];
+                    for (let r = 0; r < 8; r++) {
+                        for (let c = 0; c < 8; c++) {
+                            if (isPieceOwnedBy(board[r][c], PLAYER_1)) {
+                                moves = moves.concat(getValidMovesForPiece(board, r, c));
+                            }
+                        }
+                    }
+                }
+
+                if (moves.length === 0) return 1000;
+
+                for (const m of moves) {
+                    const tempBoard = board.map(row => [...row]);
+                    tempBoard[m.fromR][m.fromC] = 0;
+                    tempBoard[m.r][m.c] = PLAYER_1;
+                    if (m.isCapture && m.captured) m.captured.forEach(cp => tempBoard[cp.r][cp.c] = 0);
+
+                    const evalScore = minimax(tempBoard, depth - 1, true, alpha, beta);
+                    minEval = Math.min(minEval, evalScore);
+                    beta = Math.min(beta, evalScore);
+                    if (beta <= alpha) break;
+                }
+                return minEval;
+            }
+        }
+
+        function evaluateBoard(board) {
+            let score = 0;
+            for (let r = 0; r < 8; r++) {
+                for (let c = 0; c < 8; c++) {
+                    const val = board[r][c];
+                    if (val === PLAYER_2) score += 10 + r;
+                    else if (val === -PLAYER_2) score += 25;
+                    else if (val === PLAYER_1) score -= (10 + (7 - r));
+                    else if (val === -PLAYER_1) score -= 25;
+                }
+            }
+            return score;
+        }
+
+        function checkEndGameConditions() {
+            if (gameState.p1Count === 0) {
+                triggerGameOver(PLAYER_2, "¡Jugador 2 ha eliminado todas las piezas!");
+                return true;
+            }
+            if (gameState.p2Count === 0) {
+                triggerGameOver(PLAYER_1, "¡Jugador 1 ha eliminado todas las piezas!");
+                return true;
+            }
+
+            const nextPlayer = gameState.turn === PLAYER_1 ? PLAYER_2 : PLAYER_1;
+            let hasMoves = false;
+
+            for (let r = 0; r < 8; r++) {
+                for (let c = 0; c < 8; c++) {
+                    if (isPieceOwnedBy(gameState.board[r][c], nextPlayer)) {
+                        if (getValidMovesForPiece(gameState.board, r, c).length > 0) {
+                            hasMoves = true;
+                            break;
+                        }
+                    }
+                }
+                if (hasMoves) break;
+            }
+
+            if (!hasMoves) {
+                const winner = gameState.turn;
+                triggerGameOver(winner, `¡Jugador ${nextPlayer === PLAYER_1 ? '1' : '2'} no tiene movimientos válidos!`);
+                return true;
+            }
+
+            if (settings.rule40Moves && gameState.quietMovesCount >= 40) {
+                triggerGameOver(0, "Empate por la regla de los 40 movimientos sin captura.");
+                return true;
+            }
+
+            if (settings.autoDraw && gameState.p1Count === 1 && gameState.p2Count === 1) {
+                triggerGameOver(0, "Empate por insuficiencia de piezas (1 vs 1).");
+                return true;
+            }
+
+            return false;
+        }
+
+        function triggerGameOver(winner, reason) {
+            gameState.isGameOver = true;
+            stopTimer();
+
+            const modal = document.getElementById('game-modal');
+            const titleEl = document.getElementById('modal-title');
+            const bodyEl = document.getElementById('modal-body');
+            const iconEl = document.getElementById('modal-icon');
+
+            if (winner === 0) {
+                titleEl.textContent = "¡Empate / Tablas!";
+                bodyEl.textContent = reason;
+                iconEl.className = "w-16 h-16 rounded-full mx-auto flex items-center justify-center text-3xl mb-4 bg-slate-700 text-slate-300 border border-slate-500";
+                iconEl.innerHTML = '<i class="fa-solid fa-handshake"></i>';
+            } else {
+                const winnerName = winner === PLAYER_1 ? "Jugador 1" : (settings.mode === 'pve' ? "CPU" : "Jugador 2");
+                titleEl.textContent = `¡Victoria de ${winnerName}!`;
+                bodyEl.textContent = reason;
+                iconEl.className = "w-16 h-16 rounded-full mx-auto flex items-center justify-center text-3xl mb-4 bg-amber-500/20 text-amber-400 border border-amber-500/40";
+                iconEl.innerHTML = '<i class="fa-solid fa-trophy"></i>';
+            }
+
+            modal.classList.remove('hidden');
+        }
+    </script>
+</body>
+</html>
